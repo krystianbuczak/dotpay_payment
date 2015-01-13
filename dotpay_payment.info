@@ -1,0 +1,9 @@
+name = Dotpay Payment
+description = Provides <a href="http://dotpay.pl">Dotpay</a> payment method.
+package = Payment
+core = 7.x
+
+dependencies[] = entity
+dependencies[] = payment
+
+files[] = dotpay_payment.class.inc

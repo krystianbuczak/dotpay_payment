@@ -1,0 +1,279 @@
+<?php 
+define('DOTPAY_PAYMENT_SERVER_URL', 'https://ssl.dotpay.pl');
+define('DOTPAY_PAYMENT_SERVER_IP', '195.150.9.37');
+define('DOTPAY_PAYMENT_RETURN_PATH', 'payment/dotpay/return');
+define('DOTPAY_PAYMENT_SERVER_ONLINETRANSFER', 0);
+
+/**
+ * Implements hook_menu().
+ */
+function dotpay_payment_menu() {
+  $items = array();
+
+  $items[DOTPAY_PAYMENT_RETURN_PATH] = array(
+    'page callback' => 'dotpay_payment_return',
+    'page arguments' => array(3),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['payment/dotpay/form/%/%'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dotpay_payment_form', 3, 4),
+    'access callback' => 'dotpay_payment_access',
+    'access arguments' => array(3, 4),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+/**
+ * Implements hook_payment_method_controller_info().
+ */
+
+function dotpay_payment_payment_method_controller_info() {
+  return array('DotpayPaymentMethodController');
+}
+/**
+ * Implements hook_entity_load().
+ */
+function dotpay_payment_entity_load(array $entities, $entity_type) {
+  if ($entity_type == 'payment_method') {
+    foreach ($entities as $payment_method) {
+      if ($payment_method->controller->name == 'DotpayPaymentMethodController') {
+        $payment_method->controller_data
+                = variable_get('dotpay_payment_' . $payment_method->pmid . '_controller_data', array());
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_ACTION().
+ */
+function dotpay_payment_payment_method_insert(PaymentMethod $payment_method) {
+  if ($payment_method->controller->name == 'DotpayPaymentMethodController') {
+    variable_set('dotpay_payment_' . $payment_method->pmid . '_controller_data',
+            $payment_method->controller_data);
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_ACTION().
+ */
+function dotpay_payment_payment_method_update(PaymentMethod $payment_method) {
+  if ($payment_method->controller->name == 'DotpayPaymentMethodController') {
+    variable_set('dotpay_payment_' . $payment_method->pmid . '_controller_data',
+            $payment_method->controller_data);
+  }
+}
+/**
+ * Return callback.
+ *
+ * @param string $pid
+ *   The id of the payment.
+ */
+function dotpay_payment_return($pid) {
+  /*
+   * TODO decide if it should post raw payment ID number
+   */
+
+  // Get data posted by Dotpay.
+  $ip = ip_address();
+  $data = drupal_get_query_parameters($_POST);
+  
+  // Access check.
+  $payment_id = $data['control'];
+// TODO decide!!!
+  checkMenuAccess($ip, DOTPAY_PAYMENT_SERVER_IP, 'Sorry you are not Dotpay server');
+  if ($ip != DOTPAY_PAYMENT_SERVER_IP) {
+    drupal_set_message(t('Data sent is not from Dotpay server'), 'error');
+    return MENU_ACCESS_DENIED;
+  }
+  if ($payment_id != $pid) {
+    drupal_set_message(t('Return url is not valid.'), 'error');
+    return MENU_ACCESS_DENIED;
+  }
+
+  // Load the payment.
+  $payment = entity_load_single('payment', $pid);
+
+  $controller_data = $payment->method->controller_data;
+
+  // Get secret PIN and Dotpay ID from controller data.
+  $pin = $controller_data['dotpay_pin'];
+  $id = $controller_data['dotpay_id'];
+  // Get md5 checksum from POST data.
+  $checksum = $data['md5'];
+  unset($data['md5']);
+
+  $check_signature = $payment->method->controller->generate_md5($pin, $id, $data);
+  if ($checksum != $check_signature) {
+    return MENU_ACCESS_DENIED;
+  }
+
+  $payment_status = $payment->method->controller->status($data['t_status']);
+  $payment->setStatus(new PaymentStatusItem($payment_status));
+  entity_save('payment', $payment);
+
+  // Finish the payment.
+  $payment->finish();
+
+  // Set status message.
+  $view = '';
+  if (payment_access('view', $payment)) {
+    $view = ' ' . l(t('View payment'), 'payment/' . $payment->pid) . '.';
+  }
+  if (payment_status_is_or_has_ancestor($payment->getStatus()->status, PAYMENT_STATUS_PENDING)) {
+    drupal_set_message(t('Your payment is still being processed.') . $view);
+  }
+  elseif (payment_status_is_or_has_ancestor($payment->getStatus()->status, PAYMENT_STATUS_SUCCESS)) {
+    drupal_set_message(t('Your payment was successfully completed.') . $view);
+  }
+  elseif (payment_status_is_or_has_ancestor($payment->getStatus()->status, PAYMENT_STATUS_FAILED)) {
+    drupal_set_message(t('Your payment failed.') . $view);
+  }
+
+  if (isset($payment->context_data['entity_type']) && isset($payment->context_data['entity_id'])) {
+    $entity = entity_load_single($payment->context_data['entity_type'], $payment->context_data['entity_id']);
+    if ($uri = entity_uri($payment->context_data['entity_type'], $entity)) {
+      drupal_goto($uri['path'], $uri['options']);
+    }
+  }
+  drupal_goto('<front>');
+}
+
+/**
+ * Form in admin/configuration page
+ * Form build callback: implements
+ * PaymentMethodController::payment_method_configuration_form_elements_callback.
+ */
+function dotpay_payment_method_configuration(array $form, array &$form_state) {
+  // store payment constroller object
+  $controller = $form_state['payment_method']->controller;
+  // store payment controller data
+  $controller_data = $form_state['payment_method']->controller_data;
+  
+  if (!is_array($form)) {
+    $form = array();
+  }
+  // TODO see  js file
+  $elements['#attached']['js'] = array(
+  drupal_get_path('module', 'dotpay_payment') . '/dotpay_payment.js',
+  );
+  $elements['dotpay_id'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#default_value' => isset($controller_data['dotpay_id'])?$controller_data['dotpay_id']:'',
+    '#title' => t('Dotpay user ID'),
+    '#description' => t('Your Dotpay user ID number'),
+  );
+  $elements['dotpay_pin'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#default_value' => isset($controller_data['dotpay_pin'])?$controller_data['dotpay_pin']:'',
+    '#title' => t('PIN for URLC'),
+    '#description' => t('PIN number to verify return (URLC) message'),
+  );
+  $elements['dotpay_url'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#default_value' => isset($controller_data['dotpay_url'])?$controller_data['dotpay_url']:DOTPAY_PAYMENT_SERVER_URL,
+    '#title' => t('Dotpay server URL'),
+    '#description' => t('The URL of Dotpay payment server.'),
+  );
+  $elements['dotpay_ip'] = array(
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#default_value' => isset($controller_data['dotpay_ip'])?$controller_data['dotpay_ip']:DOTPAY_PAYMENT_SERVER_IP,
+    '#title' => t('Dotpay server IP'),
+    '#description' => t('IP address of Dotpay payment server. Important for host verification.'),
+  );
+  $elements['dotpay_button_text'] = array(
+    '#type' => 'textfield',
+    '#required' => FALSE,
+    '#size' => 100,
+    '#maxlength'=> 100,
+    '#default_value' => isset($controller_data['dotpay_button_text'])?$controller_data['dotpay_button_text']:'',
+    '#title' => t('Text on button '),
+    '#description' => t('Text displayed on return button in Dotpay service (i.e. "Return to service")'),
+  );
+  $elements['dotpay_onlinetransfer'] = array(
+    '#type' => 'checkbox',
+    '#required' => FALSE,
+    '#default_value' => isset($controller_data['dotpay_onlinetransfer'])?$controller_data['dotpay_onlinetransfer']:DOTPAY_PAYMENT_SERVER_ONLINETRANSFER,
+    '#title' => t('Only onlinetransfer payment'),
+    '#description' => t('If checked - only on-line transfer payment services are active. On-line transfer payment is payment where money are transfered without delay. See Dotpay documentation'),
+  );
+  
+  // TODO make an asociative array with channel groups and channels
+  
+  $channels_groups = $controller->channelOptions();
+  
+  $elements['dotpay_channels'] = array(
+    '#description' => t('If no brand is selected, the payer will have to choose the payment method brand after being redirected to the Dotpay server.'), 
+    '#title' => t('Dotpay payment method channel'),
+    '#type' => 'fieldset',
+    '#tree' => TRUE,
+  );
+  foreach ($channels_groups as $channel_group => $channel) {
+    $elements['dotpay_channels'][$channel_group] = array(
+      '#title' => $channel['title'],
+      '#type' => 'fieldset',
+      '#tree' => TRUE,
+      );
+    $elements['dotpay_channels'][$channel_group]['options'] = array(
+      '#default_value' => isset($controller_data['dotpay_channels'][$channel_group]['options'])?$controller_data['dotpay_channels'][$channel_group]['options']:'',
+      '#type' => 'checkboxes',
+      '#multiple' => TRUE,
+      '#options' => $channel['options'],
+      );  
+  };
+  
+  return $elements;
+}
+/**
+ * Validation callback for payment method configuration form elements callback.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function dotpay_payment_method_configuration_validate($form, &$form_state) {
+  $values = drupal_array_get_nested_value($form_state['values'], $form['#parents']);
+
+  $form_state['payment_method']->controller_data['dotpay_id'] = $values['dotpay_id'];
+  $form_state['payment_method']->controller_data['dotpay_pin'] = $values['dotpay_pin'];
+  $form_state['payment_method']->controller_data['dotpay_url'] = $values['dotpay_url'];
+  $form_state['payment_method']->controller_data['dotpay_ip'] = $values['dotpay_ip'];
+  $form_state['payment_method']->controller_data['dotpay_onlinetransfer'] = $values['dotpay_onlinetransfer'];
+  $form_state['payment_method']->controller_data['dotpay_button_text'] = $values['dotpay_button_text'];
+  $form_state['payment_method']->controller_data['dotpay_channels'] = $values['dotpay_channels'];
+}
+/**
+ * TODO description
+ */
+function dotpay_payment_access($pid, $hash) {
+  $payment = entity_load_single('payment', $pid);
+
+  $controller_data = $payment->method->controller_data;
+  $dotpay_pin = $controller_data['dotpay_pin'];
+
+  $check = md5($payment->pid . $dotpay_pin);
+
+  if ($hash != $check) {
+    drupal_set_message(t('Payment url is not valid.'), 'error');
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }
+}
+/**
+ * TODO description
+ */
+function dotpay_payment_form($form, &$form_state, $pid, $hash) {
+  $payment = entity_load_single('payment', $pid);
+
+  $form = $payment->method->controller->form($payment, $form, $form_state);
+
+  return $form;
+}
