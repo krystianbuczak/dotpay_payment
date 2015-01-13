@@ -42,6 +42,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
     // URL 
     $url = $controller_data['dotpay_url'];
     $currency = $payment->currency_code;
+    $onlinetransfer = $controller_data['dotpay_onlinetransfer'];
     // Pass control parameter from an URL
     $this->isValidMd5(arg(4))?$control = arg(4):dsm('Blad');
     
@@ -73,7 +74,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
       'control' => $control, // back to payment ID
       'ch_lock' => 1, //get that value from $controller_data
       //'channel' => 1,
-      'onlinetransfer' => 0,
+      'onlinetransfer' => $onlinetransfer,
       'type' => 0,
       'URL' => url(DOTPAY_PAYMENT_RETURN_PATH
               . '/' . $payment->pid, array('absolute' => TRUE)),
@@ -88,6 +89,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
       }
     }
     // only for tests - it will be removed soon
+    dsm($controller_data['dotpay_channels']);
     $channels = array(
       0 => t('Cards'),
       1 => t('mTransfer (mBank)'),
@@ -208,33 +210,33 @@ class DotpayPaymentMethodController extends PaymentMethodController {
     if (is_null($map)) {
       $map = array(
         'credit_cards' => array(
-          'title' => t('Credit Cards'),
+          'header' => array('title' => t('Credit Cards')),
           'options' => array(
-            '0' => t('VISA, MasterCard, JCB, Diners Club'),
+            array('channel' => 0, 'title' => t('VISA, MasterCard, JCB, Diners Club')),
           ),
         ),
         'online_transfer' => array(
-          'title' => t('Online Transfer'),
+          'header' => array('title' => t('Online Transfer')),
           'options' => array(
-            '1' => t('mTransfer (mBank)'),
-            '2' => t('Płacę z Inteligo (konto Inteligo)'),
-            '3' => t('Multitransfer (Multibank)'),
-            '4' => t('Płacę z iPKO'),
-            '6' => t('Przelew24 (BZBWK)'),
-            '17' => t('Pałać z Nordea'),
-            '18' => t('Przelew z BPH'),
-            '36' => t('Pekao24Przelew'),
-            '38' => t('Płacę z ING Bank Śląski'),
-            '44' => t('Millenium - płatności interenetowe'),
-            '45' => t('Płacę z Alior Bankiem'),
-            '46' => t('Płacę z City Handlowy'),
-            '48' => t('r-przelew Raiffeisen Bank'),
-            '49' => t('MeritumBank Przelew'),
-            '50' => t('Pay Way Toyota Bank'),
-            '51' => t('Płać z BOŚ'),
-            '56' => t('Eurobank'),
-            '58' => t('Szybkie Płatności Internetowe z Deutsche Bank PBC'),
-            '60' => t('Alior Sync'),
+            array('channel' => 1, 'title' => t('mTransfer (mBank)')),
+            array('channel' => 2, 'title' => t('Płacę z Inteligo (konto Inteligo)')),
+            array('channel' => 3, 'title' => t('Multitransfer (Multibank)')),
+            //4 => t('Płacę z iPKO'),
+            array('channel' => 6, 'title' => t('Przelew24 (BZBWK)')),
+            //17 => t('Płać z Nordea'),
+            //18 => t('Przelew z BPH'),
+            //36 => t('Pekao24Przelew'),
+            //38 => t('Płacę z ING Bank Śląski'),
+            //44 => t('Millenium - płatności interenetowe'),
+            //45 => t('Płacę z Alior Bankiem'),
+            //46 => t('Płacę z City Handlowy'),
+            //48 => t('r-przelew Raiffeisen Bank'),
+            //49 => t('MeritumBank Przelew'),
+            //50 => t('Pay Way Toyota Bank'),
+            //51 => t('Płać z BOŚ'),
+            //56 => t('Eurobank'),
+            //58 => t('Szybkie Płatności Internetowe z Deutsche Bank PBC'),
+            //60 => t('Alior Sync')
           ),
         ), 
       );

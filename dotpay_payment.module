@@ -215,18 +215,27 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#type' => 'fieldset',
     '#tree' => TRUE,
   );
-  foreach ($channels_groups as $channel_group => $channel) {
-    $elements['dotpay_channels'][$channel_group] = array(
-      '#title' => $channel['title'],
-      '#type' => 'fieldset',
-      '#tree' => TRUE,
+  
+  foreach ($channels_groups as $channels_group => $channels) {
+    // make sure that $options array is empty
+    $options = array();
+    $header = $channels['header'];
+    foreach ($channels['options'] as $channel) {
+  
+      $options[$channel['channel']] = array(
+        'title' => $channel['title']
       );
-    $elements['dotpay_channels'][$channel_group]['options'] = array(
-      '#default_value' => isset($controller_data['dotpay_channels'][$channel_group]['options'])?$controller_data['dotpay_channels'][$channel_group]['options']:'',
-      '#type' => 'checkboxes',
-      '#multiple' => TRUE,
-      '#options' => $channel['options'],
-      );  
+
+      $elements['dotpay_channels'][$channels_group] = array(
+      '#default_value' => isset($controller_data['dotpay_channels'][$channels_group]['options'])?$controller_data['dotpay_channels'][$channels_group]['options']:'', 
+      '#header' => $header,
+      '#type' => 'tableselect',
+      '#tree' => TRUE,
+      '#options' => $options
+      );
+    }
+    
+    
   };
   
   return $elements;
