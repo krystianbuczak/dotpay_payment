@@ -1,4 +1,10 @@
 <?php 
+/**
+ * @file
+ * Dotpay module
+ *
+ * Dotpay module allows to transfer money online using many polisj=h money services
+ */
 define('DOTPAY_PAYMENT_SERVER_URL', 'https://ssl.dotpay.pl');
 define('DOTPAY_PAYMENT_SERVER_IP', '195.150.9.37');
 define('DOTPAY_PAYMENT_RETURN_PATH', 'payment/dotpay/return');
@@ -156,10 +162,6 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
   if (!is_array($form)) {
     $form = array();
   }
-  // TODO see  js file
-  $elements['#attached']['js'] = array(
-  drupal_get_path('module', 'dotpay_payment') . '/dotpay_payment.js',
-  );
   $elements['dotpay_id'] = array(
     '#type' => 'textfield',
     '#required' => TRUE,
@@ -192,9 +194,9 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#type' => 'textfield',
     '#required' => FALSE,
     '#size' => 100,
-    '#maxlength'=> 100,
+    '#maxlength' => 100,
     '#default_value' => isset($controller_data['dotpay_button_text'])?$controller_data['dotpay_button_text']:'',
-    '#title' => t('Text on button '),
+    '#title' => t('Text on button'),
     '#description' => t('Text displayed on return button in Dotpay service (i.e. "Return to service")'),
   );
   $elements['dotpay_onlinetransfer'] = array(
@@ -214,6 +216,8 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#title' => t('Dotpay payment method channel'),
     '#type' => 'fieldset',
     '#tree' => TRUE,
+    '#collapsible' => TRUE, 
+    '#collapsed' => FALSE
   );
   
   foreach ($channels_groups as $channels_group => $channels) {
@@ -227,17 +231,15 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
       );
 
       $elements['dotpay_channels'][$channels_group] = array(
-      '#default_value' => isset($controller_data['dotpay_channels'][$channels_group]['options'])?$controller_data['dotpay_channels'][$channels_group]['options']:'', 
+      '#default_value' => isset($controller_data['dotpay_channels'][$channels_group])?$controller_data['dotpay_channels'][$channels_group]:'', 
       '#header' => $header,
       '#type' => 'tableselect',
-      '#tree' => TRUE,
       '#options' => $options
       );
     }
-    
-    
   };
-  
+  dpm($controller_data);
+
   return $elements;
 }
 /**
