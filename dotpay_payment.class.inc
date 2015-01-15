@@ -42,6 +42,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
     // URL 
     $url = $controller_data['dotpay_url'];
     $currency = $payment->currency_code;
+    $onlinetransfer = $controller_data['dotpay_onlinetransfer'];
     // Pass control parameter from an URL
     $this->isValidMd5(arg(4))?$control = arg(4):dsm('Blad');
     
@@ -73,7 +74,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
       'control' => $control, // back to payment ID
       'ch_lock' => 1, //get that value from $controller_data
       //'channel' => 1,
-      'onlinetransfer' => 0,
+      'onlinetransfer' => $onlinetransfer,
       'type' => 0,
       'URL' => url(DOTPAY_PAYMENT_RETURN_PATH
               . '/' . $payment->pid, array('absolute' => TRUE)),
@@ -88,18 +89,16 @@ class DotpayPaymentMethodController extends PaymentMethodController {
       }
     }
     // only for tests - it will be removed soon
-    $channels = array(
-      0 => t('Cards'),
-      1 => t('mTransfer (mBank)'),
-      2 => t('Płacę z Inteligo (konto Inteligo)'),
-      3 => t('Multitransfer (Multibank)'),
-      4 => t('Płacę z iPKO'),
-    );
     
+    $dotpay_channels = $controller_data['dotpay_channels'];
+    $options = array();
+    foreach ($dotpay_channels as $channels_group => $channels) {
+      $options = array_merge($options,array_filter($channels));
+    }
     $form['channel'] = array(
       '#type' => 'radios',
-      '#default_value' => 1,
-      '#options' => $channels,
+      '#default_value' => 0,
+      '#options' => $options,
       );
     $form['actions'] = array('#type' => 'actions');
     $form['actions']['submit'] = array(
@@ -146,16 +145,16 @@ class DotpayPaymentMethodController extends PaymentMethodController {
    */
   private function _generate_md5($pin, $id, $data) {
     return md5(
-      $pin .':'.
-      $id .':'.
+      $pin . ':' .
+      $id . ':' .
       isset($data['control']) ? $data['control']: '' .':'.
-      isset($data['t_id']) ? $data['t_id']: '' .':'.
-      isset($data['amount']) ? $data['amount']: '' .':'.
-      isset($data['email']) ? $data['email']: '' .':'.
-      isset($data['service']) ? $data['service']: '' .':'.
-      isset($data['code']) ? $data['code']: '' .':'.
-      isset($data['username']) ? $data['username']: '' .':'.
-      isset($data['password']) ? $data['password']: '' .':'.
+      isset($data['t_id']) ? $data['t_id']: '' . ':' .
+      isset($data['amount']) ? $data['amount']: '' . ':' .
+      isset($data['email']) ? $data['email']: '' . ':' .
+      isset($data['service']) ? $data['service']: '' . ':' .
+      isset($data['code']) ? $data['code']: '' . ':' .
+      isset($data['username']) ? $data['username']: '' . ':' .
+      isset($data['password']) ? $data['password']: '' . ':' .
       isset($data['t_status']) ? $data['t_status']: ''
     );
 
@@ -208,35 +207,41 @@ class DotpayPaymentMethodController extends PaymentMethodController {
     if (is_null($map)) {
       $map = array(
         'credit_cards' => array(
-          'title' => t('Credit Cards'),
+          'header' => array('title' => t('Credit Cards')),
           'options' => array(
-            '0' => t('VISA, MasterCard, JCB, Diners Club'),
+            array('channel' => -1, 'title' => t('VISA, MasterCard, JCB, Diners Club')),
           ),
         ),
-        'online_transfer' => array(
-          'title' => t('Online Transfer'),
+        'transfer_channels' => array(
+          'header' => array('title' => t('Transfer channels')),
           'options' => array(
-            '1' => t('mTransfer (mBank)'),
-            '2' => t('Płacę z Inteligo (konto Inteligo)'),
-            '3' => t('Multitransfer (Multibank)'),
-            '4' => t('Płacę z iPKO'),
-            '6' => t('Przelew24 (BZBWK)'),
-            '17' => t('Pałać z Nordea'),
-            '18' => t('Przelew z BPH'),
-            '36' => t('Pekao24Przelew'),
-            '38' => t('Płacę z ING Bank Śląski'),
-            '44' => t('Millenium - płatności interenetowe'),
-            '45' => t('Płacę z Alior Bankiem'),
-            '46' => t('Płacę z City Handlowy'),
-            '48' => t('r-przelew Raiffeisen Bank'),
-            '49' => t('MeritumBank Przelew'),
-            '50' => t('Pay Way Toyota Bank'),
-            '51' => t('Płać z BOŚ'),
-            '56' => t('Eurobank'),
-            '58' => t('Szybkie Płatności Internetowe z Deutsche Bank PBC'),
-            '60' => t('Alior Sync'),
+            array('channel' => 1, 'title' => t('mTransfer (mBank)')),
+            array('channel' => 2, 'title' => t('Płacę z Inteligo (konto Inteligo)')),
+            array('channel' => 3, 'title' => t('Multitransfer (Multibank)')),
+            array('channel' => 4, 'title' => t('Płacę z iPKO')),
+            array('channel' => 6, 'title' => t('Przelew24 (BZBWK)')),
+            array('channel' => 17, 'title' => t('Płać z Nordea')),
+            array('channel' => 18, 'title' => t('Przelew z BPH')),
+            array('channel' => 36, 'title' => t('Pekao24Przelew')),
+            array('channel' => 38, 'title' => t('Płacę z ING Bank Śląski')),
+            array('channel' => 44, 'title' => t('Millenium - płatności interenetowe')),
+            array('channel' => 45, 'title' => t('Płacę z Alior Bankiem')),
+            array('channel' => 46, 'title' => t('Płacę z City Handlowy')),
+            array('channel' => 48, 'title' => t('r-przelew Raiffeisen Bank')),
+            array('channel' => 49, 'title' => t('MeritumBank Przelew')),
+            array('channel' => 50, 'title' => t('Pay Way Toyota Bank')),
+            array('channel' => 51, 'title' => t('Płać z BOŚ')),
+            array('channel' => 56, 'title' => t('Eurobank')),
+            array('channel' => 58, 'title' => t('Szybkie Płatności Internetowe z Deutsche Bank PBC')),
+            array('channel' => 60, 'title' => t('Alior Sync'))
+          ), 
+        ),
+        'nontransfer_channels' => array(
+          'header' => array('title' => t('Non-transfer channels')),
+          'options' => array(
+            array('channel' => 7, 'title' => t('ING Bank Śląski')),
           ),
-        ), 
+        ),
       );
     }
     return $map;
