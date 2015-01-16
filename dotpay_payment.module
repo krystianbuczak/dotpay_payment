@@ -8,7 +8,6 @@
 define('DOTPAY_PAYMENT_SERVER_URL', 'https://ssl.dotpay.pl');
 define('DOTPAY_PAYMENT_SERVER_IP', '195.150.9.37');
 define('DOTPAY_PAYMENT_RETURN_PATH', 'payment/dotpay/return');
-define('DOTPAY_PAYMENT_SERVER_ONLINETRANSFER', 0);
 
 /**
  * Implements hook_menu().
@@ -202,9 +201,16 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
   $elements['dotpay_onlinetransfer'] = array(
     '#type' => 'checkbox',
     '#required' => FALSE,
-    '#default_value' => isset($controller_data['dotpay_onlinetransfer'])?$controller_data['dotpay_onlinetransfer']:DOTPAY_PAYMENT_SERVER_ONLINETRANSFER,
+    '#default_value' => isset($controller_data['dotpay_onlinetransfer'])?$controller_data['dotpay_onlinetransfer']: 0,
     '#title' => t('Only onlinetransfer payment'),
-    '#description' => t('If checked - only on-line transfer payment services are active. On-line transfer payment is payment where money are transfered without delay. See Dotpay documentation'),
+    '#description' => t('If checked - only on-line transfer payment services are active. On-line transfer payment is payment where money are transfered without delay. See module README'),
+  );
+  $elements['dotpay_ch_lock'] = array(
+    '#type' => 'checkbox',
+    '#required' => FALSE,
+    '#default_value' => isset($controller_data['dotpay_ch_lock'])?$controller_data['dotpay_ch_lock']: 0,
+    '#title' => t('Lock particular payment channel'),
+    '#description' => t("Check this if you want to lock ONE particular payment channel. Your client after redirection to Dotpay service will be see only one chosen channel. See module README"),
   );
   
   // TODO make an asociative array with channel groups and channels
@@ -217,19 +223,18 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#type' => 'fieldset',
     '#tree' => TRUE,
     '#collapsible' => TRUE, 
-    '#collapsed' => FALSE
+    '#collapsed' => TRUE
   );
   
   foreach ($channels_groups as $channels_group => $channels) {
     // make sure that $options array is empty
     $options = array();
-    $header = $channels['header'];
+    $header = array_merge($channels['header'], array('channel_id' => t('Channel ID')));
     foreach ($channels['options'] as $channel) {
   
       $options[$channel['channel']] = array(
-        'title' => $channel['title']
+        'title' => $channel['title'], 'channel_id' => $channel['channel']
       );
-
       $elements['dotpay_channels'][$channels_group] = array(
       '#default_value' => isset($controller_data['dotpay_channels'][$channels_group])?$controller_data['dotpay_channels'][$channels_group]:'', 
       '#header' => $header,
@@ -238,7 +243,6 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
       );
     }
   };
-  dpm($controller_data);
 
   return $elements;
 }
