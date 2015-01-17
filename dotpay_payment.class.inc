@@ -299,9 +299,8 @@ class DotpayPaymentMethodController extends PaymentMethodController {
    *   Keys are payment method/brand names. Values array arrays that contain brand names.
    *
 */
-  /*public function channelOptions() {
+  public function channelOptions() {
     $map = $this->channels();
     return $map;
   }
-  */
 }
