@@ -69,10 +69,8 @@ class DotpayPaymentMethodController extends PaymentMethodController {
       'amount' => number_format($payment_data['amount'], 2, '.', ''),
       'description' => $payment_data['description'],
       'p_email' => variable_get('site_mail', ''),
-      //'email' => ,
       'currency' => $currency,
       'lang' => $language->language,
-      // the only way dotpay return 
       'control' => $payment->pid,
       'onlinetransfer' => $controller_data['dotpay_onlinetransfer'],
       'ch_lock' => $controller_data['dotpay_ch_lock'],

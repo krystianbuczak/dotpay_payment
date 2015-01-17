@@ -177,6 +177,7 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#title' => t('Dotpay server IP'),
     '#description' => t('IP address of Dotpay payment server. Important for host verification.'),
   );
+  // TODO try to use drupal_lookup_path() to check if path exists
   $elements['dotpay_return_url'] = array(
     '#type' => 'textfield',
     '#required' => FALSE,
