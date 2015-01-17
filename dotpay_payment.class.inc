@@ -294,20 +294,14 @@ class DotpayPaymentMethodController extends PaymentMethodController {
   
 /**
    * Returns Dotpay payment method brand options.
-   *
+   * TODO create foreach loop to build ready channels set for next tasks
    * @return array
    *   Keys are payment method/brand names. Values array arrays that contain brand names.
    *
 */
-  public function channelOptions() {
+  /*public function channelOptions() {
     $map = $this->channels();
-    /*$options = array();
-    foreach ($map as $dotpay_payment_method => $dotpay_payment_method_brands) {
-      foreach ($dotpay_payment_method_brands as $brand) {
-        $options[$dotpay_payment_method . ':' . $brand] = $brand;
-      }
-    }*/
     return $map;
   }
-  
+  */
 }
