@@ -1,8 +1,13 @@
 <?php 
+/**
+ * @file
+ * Dotpay module
+ *
+ * Dotpay module allows to transfer money online using many Polish money services
+ */
 define('DOTPAY_PAYMENT_SERVER_URL', 'https://ssl.dotpay.pl');
 define('DOTPAY_PAYMENT_SERVER_IP', '195.150.9.37');
 define('DOTPAY_PAYMENT_RETURN_PATH', 'payment/dotpay/return');
-define('DOTPAY_PAYMENT_SERVER_ONLINETRANSFER', 0);
 
 /**
  * Implements hook_menu().
@@ -11,9 +16,10 @@ function dotpay_payment_menu() {
   $items = array();
 
   $items[DOTPAY_PAYMENT_RETURN_PATH] = array(
-    'page callback' => 'dotpay_payment_return',
+    'page callback' => 'dotpay_payment_return_page',
     'page arguments' => array(3),
-    'access callback' => TRUE,
+    'access callback' => 'dotpay_payment_return_access',
+    'access arguments' => array(3),
     'type' => MENU_CALLBACK,
   );
   $items['payment/dotpay/form/%/%'] = array(
@@ -72,31 +78,18 @@ function dotpay_payment_payment_method_update(PaymentMethod $payment_method) {
  * @param string $pid
  *   The id of the payment.
  */
-function dotpay_payment_return($pid) {
+function dotpay_payment_return_page($pid) {
   /*
    * TODO decide if it should post raw payment ID number
    */
 
   // Get data posted by Dotpay.
-  $ip = ip_address();
-  $data = drupal_get_query_parameters($_POST);
   
-  // Access check.
-  $payment_id = $data['control'];
-// TODO decide!!!
-  checkMenuAccess($ip, DOTPAY_PAYMENT_SERVER_IP, 'Sorry you are not Dotpay server');
-  if ($ip != DOTPAY_PAYMENT_SERVER_IP) {
-    drupal_set_message(t('Data sent is not from Dotpay server'), 'error');
-    return MENU_ACCESS_DENIED;
-  }
-  if ($payment_id != $pid) {
-    drupal_set_message(t('Return url is not valid.'), 'error');
-    return MENU_ACCESS_DENIED;
-  }
+  $data = drupal_get_query_parameters($_POST);
 
-  // Load the payment.
+  // Load payment entity
   $payment = entity_load_single('payment', $pid);
-
+  // Load payment controller data
   $controller_data = $payment->method->controller_data;
 
   // Get secret PIN and Dotpay ID from controller data.
@@ -156,10 +149,6 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
   if (!is_array($form)) {
     $form = array();
   }
-  // TODO see  js file
-  $elements['#attached']['js'] = array(
-  drupal_get_path('module', 'dotpay_payment') . '/dotpay_payment.js',
-  );
   $elements['dotpay_id'] = array(
     '#type' => 'textfield',
     '#required' => TRUE,
@@ -188,47 +177,63 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
     '#title' => t('Dotpay server IP'),
     '#description' => t('IP address of Dotpay payment server. Important for host verification.'),
   );
+  $elements['dotpay_return_url'] = array(
+    '#type' => 'textfield',
+    '#required' => FALSE,
+    '#default_value' => isset($controller_data['dotpay_return_url'])?$controller_data['dotpay_return_url']: '<front>',
+    '#title' => t('Return page URL'),
+    '#description' => t('URL path to the page where customer will return after transaction (use unaliased format: i.e. node/22). Default is front page.'),
+  );
   $elements['dotpay_button_text'] = array(
     '#type' => 'textfield',
     '#required' => FALSE,
     '#size' => 100,
-    '#maxlength'=> 100,
+    '#maxlength' => 100,
     '#default_value' => isset($controller_data['dotpay_button_text'])?$controller_data['dotpay_button_text']:'',
-    '#title' => t('Text on button '),
+    '#title' => t('Text on button'),
     '#description' => t('Text displayed on return button in Dotpay service (i.e. "Return to service")'),
   );
   $elements['dotpay_onlinetransfer'] = array(
     '#type' => 'checkbox',
     '#required' => FALSE,
-    '#default_value' => isset($controller_data['dotpay_onlinetransfer'])?$controller_data['dotpay_onlinetransfer']:DOTPAY_PAYMENT_SERVER_ONLINETRANSFER,
+    '#default_value' => isset($controller_data['dotpay_onlinetransfer']) ? $controller_data['dotpay_onlinetransfer']: 0,
     '#title' => t('Only onlinetransfer payment'),
-    '#description' => t('If checked - only on-line transfer payment services are active. On-line transfer payment is payment where money are transfered without delay. See Dotpay documentation'),
+    '#description' => t('If checked - only on-line transfer payment services are active. On-line transfer payment is payment where money are transfered without delay. See module README'),
   );
-  
-  // TODO make an asociative array with channel groups and channels
-  
-  $channels_groups = $controller->channelOptions();
-  
+  $elements['dotpay_ch_lock'] = array(
+    '#type' => 'checkbox',
+    '#required' => FALSE,
+    '#default_value' => isset($controller_data['dotpay_ch_lock']) ? $controller_data['dotpay_ch_lock']: 0,
+    '#title' => t('Lock particular payment channel'),
+    '#description' => t('Check this if you want to lock ONE particular payment channel. Your client after redirection to Dotpay service will see only one chosen channel. See module README'),
+  );
   $elements['dotpay_channels'] = array(
     '#description' => t('If no brand is selected, the payer will have to choose the payment method brand after being redirected to the Dotpay server.'), 
     '#title' => t('Dotpay payment method channel'),
     '#type' => 'fieldset',
     '#tree' => TRUE,
+    '#collapsible' => TRUE, 
+    '#collapsed' => TRUE,
   );
-  foreach ($channels_groups as $channel_group => $channel) {
-    $elements['dotpay_channels'][$channel_group] = array(
-      '#title' => $channel['title'],
-      '#type' => 'fieldset',
-      '#tree' => TRUE,
-      );
-    $elements['dotpay_channels'][$channel_group]['options'] = array(
-      '#default_value' => isset($controller_data['dotpay_channels'][$channel_group]['options'])?$controller_data['dotpay_channels'][$channel_group]['options']:'',
-      '#type' => 'checkboxes',
-      '#multiple' => TRUE,
-      '#options' => $channel['options'],
-      );  
-  };
+  $channels_groups = $controller->channelOptions();
+  foreach ($channels_groups as $channels_group => $channels) {
+    // make sure that $options array is empty
+    $options = array();
+    $header = array_merge($channels['header'], array('channel_id' => t('Channel ID')));
+    foreach ($channels['options'] as $channel) {
   
+      $options[$channel['channel']] = array(
+        'title' => $channel['title'], 'channel_id' => $channel['channel']
+      );
+      $elements['dotpay_channels'][$channels_group] = array(
+      '#default_value' => isset($controller_data['dotpay_channels'][$channels_group])?$controller_data['dotpay_channels'][$channels_group]:'', 
+      '#header' => $header,
+      '#type' => 'tableselect',
+      '#options' => $options
+      );
+    }
+  };
+dsm($elements);
   return $elements;
 }
 /**
@@ -244,8 +249,10 @@ function dotpay_payment_method_configuration_validate($form, &$form_state) {
   $form_state['payment_method']->controller_data['dotpay_pin'] = $values['dotpay_pin'];
   $form_state['payment_method']->controller_data['dotpay_url'] = $values['dotpay_url'];
   $form_state['payment_method']->controller_data['dotpay_ip'] = $values['dotpay_ip'];
-  $form_state['payment_method']->controller_data['dotpay_onlinetransfer'] = $values['dotpay_onlinetransfer'];
+  $form_state['payment_method']->controller_data['dotpay_return_url'] = $values['dotpay_return_url'];
   $form_state['payment_method']->controller_data['dotpay_button_text'] = $values['dotpay_button_text'];
+  $form_state['payment_method']->controller_data['dotpay_onlinetransfer'] = $values['dotpay_onlinetransfer'];
+  $form_state['payment_method']->controller_data['dotpay_ch_lock'] = $values['dotpay_ch_lock'];
   $form_state['payment_method']->controller_data['dotpay_channels'] = $values['dotpay_channels'];
 }
 /**
@@ -253,11 +260,7 @@ function dotpay_payment_method_configuration_validate($form, &$form_state) {
  */
 function dotpay_payment_access($pid, $hash) {
   $payment = entity_load_single('payment', $pid);
-
-  $controller_data = $payment->method->controller_data;
-  $dotpay_pin = $controller_data['dotpay_pin'];
-
-  $check = md5($payment->pid . $dotpay_pin);
+  $check = md5($payment->pid . drupal_get_hash_salt());
 
   if ($hash != $check) {
     drupal_set_message(t('Payment url is not valid.'), 'error');
@@ -265,6 +268,21 @@ function dotpay_payment_access($pid, $hash) {
   }
   else {
     return TRUE;
+  }
+}
+function dotpay_payment_return_access($pid) {
+	$ip = ip_address();
+	$data = drupal_get_query_parameters($_POST);
+	$payment_id = $data['control'];
+	if ($ip != DOTPAY_PAYMENT_SERVER_IP) {
+    watchdog('dotpay_payment', 'The request from IP number: @ip is not expected one (@dotpayip)', array('@ip' => $ip, '@dotpayip' => DOTPAY_PAYMENT_SERVER_IP), WATCHDOG_WARNING);
+    return FALSE;
+  }
+  else if ($payment_id != $pid) {
+    drupal_set_message(t('Return url is not valid.'), 'error');
+    return FALSE;
+  } else {
+  	return TRUE;
   }
 }
 /**
