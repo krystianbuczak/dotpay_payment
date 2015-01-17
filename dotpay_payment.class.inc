@@ -2,7 +2,7 @@
 /**
  * This file contains classes, properties and methods for the Dotpay Payment module.
  */
-// TODO extend status class and add new statuses
+
 /**
  * Build Dotpay payment method controller.
  */
@@ -18,12 +18,8 @@ class DotpayPaymentMethodController extends PaymentMethodController {
    * Implements PaymentMethodController::execute().
    */
   public function execute(Payment $payment) {
-    
-    $controller_data = $payment->method->controller_data;
-    
-    $dotpay_pin = $controller_data['dotpay_pin'];
-    
-    drupal_goto('payment/dotpay/form/' . $payment->pid);
+    $salt = md5($payment->pid . drupal_get_hash_salt());
+    drupal_goto('payment/dotpay/form/' . $payment->pid . '/' . $salt);
   }
   
   /**
@@ -35,7 +31,7 @@ class DotpayPaymentMethodController extends PaymentMethodController {
 
     $controller_data = $payment->method->controller_data;
     $channels = $payment->method->controller->channelOptions();
-dsm($payment->pid);
+
     // Get settings from controller data.
     $dotpay_id = $controller_data['dotpay_id'];
     $dotpay_pin = $controller_data['dotpay_pin'];
@@ -51,31 +47,37 @@ dsm($payment->pid);
       $amount += (1 + $line_item->tax_rate) * $line_item->amount
               * $line_item->quantity;
     }
+    // Get 
     $account = $GLOBALS['user'];
 
-    dsm($account);
     $payment_data = array(
       'amount' => $amount,
       'description' => $payment->description,
     );
-
+    $form['email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Email'),
+      '#default_value' => $account->mail ? $account->mail : '',
+      '#required' => TRUE,
+      '#description' => t('Insert your email address'),
+      );
     /*
-     * 
+     * Build $data array with payment details
      */
     $data = array(
       'id' => $controller_data['dotpay_id'],
       'amount' => number_format($payment_data['amount'], 2, '.', ''),
       'description' => $payment_data['description'],
       'p_email' => variable_get('site_mail', ''),
-      'email' => ($account->mail)? $account->mail : '',
+      //'email' => ,
       'currency' => $currency,
       'lang' => $language->language,
+      // the only way dotpay return 
       'control' => $payment->pid,
-      'ch_lock' => $controller_data['dotpay_ch_lock'],
       'onlinetransfer' => $controller_data['dotpay_onlinetransfer'],
+      'ch_lock' => $controller_data['dotpay_ch_lock'],
       'type' => 0,
-      'URL' => url(DOTPAY_PAYMENT_RETURN_PATH
-              . '/' . $payment->pid, array('absolute' => TRUE)),
+      'URL' => url($controller_data['dotpay_return_url'], array('absolute' => TRUE)),
       'URLC' => url(DOTPAY_PAYMENT_RETURN_PATH
               . '/' . $payment->pid, array('absolute' => TRUE)),
     );
@@ -86,7 +88,7 @@ dsm($payment->pid);
         $form[$name] = array('#type' => 'hidden', '#value' => $value);
       }
     }
-    // only for tests - it will be removed soon
+    
     $dotpay_channels = $controller_data['dotpay_channels'];
     $options_keys = array();
     foreach ($dotpay_channels as $channels_group => $channels_ids) {
@@ -99,14 +101,13 @@ dsm($payment->pid);
     $options = array();
     foreach ($options_values as $option => $value) {
       if (in_array($value['channel'], $options_keys)) {
-        $options = array_merge($options, array($value['channel'] => $value['title']));
+        if ($value['channel'] == '-1') {
+          $options = $options + array(0 => $value['title']);
+        } else {
+          $options = $options + array($value['channel'] => $value['title']);
+        }
       }
-    }
-    //$form['c_email'] = array(
-      //'type' => 'textfield',
-      //'#title' => t('Email'),
-      //'#required' => TRUE,
-      //);
+    }  
     $form['channel'] = array(
       '#type' => 'radios',
       '#options' => $options,
@@ -116,22 +117,10 @@ dsm($payment->pid);
       '#type' => 'submit',
       '#value' => t('Pay with Dotpay'),
     );
-
+    dsm($form);
     return $form;
   }
-  /**
-   * Function to check if have menu access
-   * @param  string $value1
-   * @param  string $value2
-   * @param  string $message Drupal error message
-   * @return constant MENU_ACCESS_DENIED
-   */
-  public function checkMenuAccess($value1, $value2, $message='You have no access to this page') {
-    if ($value1 != $value2) {
-      drupal_set_message(t($message), 'error');
-      return MENU_ACCESS_DENIED;
-    }
-  }
+
   /**
    * Function checking if given string is valid md5 hash
    * @param  string  $md5 string to check
