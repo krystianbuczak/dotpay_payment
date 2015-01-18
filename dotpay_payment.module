@@ -201,11 +201,17 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
   foreach ($channels_groups as $channels_group => $channels) {
     // make sure that $options array is empty
     $options = array();
-    $header = array_merge($channels['header'], array('channel_id' => t('Channel ID')));
+    $header = array_merge(
+      $channels['header'],
+    	array(
+    		'channel_id' => t('Channel ID'),
+    		'info' => t('Info')
+    	)
+    );
     foreach ($channels['options'] as $channel) {
   
       $options[$channel['channel']] = array(
-        'title' => $channel['title'], 'channel_id' => $channel['channel']
+        'title' => $channel['title'], 'channel_id' => $channel['channel'], 'info' => $channel['info'],
       );
       $elements['dotpay_channels'][$channels_group] = array(
       '#default_value' => isset($controller_data['dotpay_channels'][$channels_group])?$controller_data['dotpay_channels'][$channels_group]:'', 
@@ -215,7 +221,6 @@ function dotpay_payment_method_configuration(array $form, array &$form_state) {
       );
     }
   };
-dsm($elements);
   return $elements;
 }
 /**
@@ -266,11 +271,11 @@ function dotpay_payment_return_access($pid) {
     watchdog('dotpay_payment', 'The request from IP number: @ip is not expected one (@dotpayip)', array('@ip' => $ip, '@dotpayip' => DOTPAY_PAYMENT_SERVER_IP), WATCHDOG_WARNING);
     return FALSE;
   }
-  else if ($data['control'] != $pid) {
+  elseif ($data['control'] != $pid) {
   	watchdog('dotpay_payment', 'Requested payment ID (@pid) does not match the one in POST data (@payment_id).', array('@pid' => $pid, '@payment_id' => $data['control']), WATCHDOG_WARNING);
     return FALSE;
   } 
-  else if ($data['md5'] != $check_signature) {
+  elseif ($data['md5'] != $check_signature) {
   	unset($data['md5']);
     return FALSE;
   }
