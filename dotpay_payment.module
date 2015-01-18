@@ -79,30 +79,11 @@ function dotpay_payment_payment_method_update(PaymentMethod $payment_method) {
  *   The id of the payment.
  */
 function dotpay_payment_return_page($pid) {
-  /*
-   * TODO decide if it should post raw payment ID number
-   */
-
-  // Get data posted by Dotpay.
-  
+    
   $data = drupal_get_query_parameters($_POST);
 
   // Load payment entity
   $payment = entity_load_single('payment', $pid);
-  // Load payment controller data
-  $controller_data = $payment->method->controller_data;
-
-  // Get secret PIN and Dotpay ID from controller data.
-  $pin = $controller_data['dotpay_pin'];
-  $id = $controller_data['dotpay_id'];
-  // Get md5 checksum from POST data.
-  $checksum = $data['md5'];
-  unset($data['md5']);
-
-  $check_signature = $payment->method->controller->generate_md5($pin, $id, $data);
-  if ($checksum != $check_signature) {
-    return MENU_ACCESS_DENIED;
-  }
 
   $payment_status = $payment->method->controller->status($data['t_status']);
   $payment->setStatus(new PaymentStatusItem($payment_status));
@@ -274,15 +255,26 @@ function dotpay_payment_access($pid, $hash) {
 function dotpay_payment_return_access($pid) {
 	$ip = ip_address();
 	$data = drupal_get_query_parameters($_POST);
-	$payment_id = $data['control'];
+
+	$controller_data = $payment->method->controller_data;
+	$controller = $payment->method->controller;
+  // Get secret PIN and Dotpay ID from controller data.
+  $pin = $controller_data['dotpay_pin'];
+  $id = $controller_data['dotpay_id'];
+	$check_signature = $controller->generate_md5($pin, $id, $data);
 	if ($ip != DOTPAY_PAYMENT_SERVER_IP) {
     watchdog('dotpay_payment', 'The request from IP number: @ip is not expected one (@dotpayip)', array('@ip' => $ip, '@dotpayip' => DOTPAY_PAYMENT_SERVER_IP), WATCHDOG_WARNING);
     return FALSE;
   }
-  else if ($payment_id != $pid) {
-    drupal_set_message(t('Return url is not valid.'), 'error');
+  else if ($data['control'] != $pid) {
+  	watchdog('dotpay_payment', 'Requested payment ID (@pid) does not match the one in POST data (@payment_id).', array('@pid' => $pid, '@payment_id' => $data['control']), WATCHDOG_WARNING);
     return FALSE;
-  } else {
+  } 
+  else if ($data['md5'] != $check_signature) {
+  	unset($data['md5']);
+    return FALSE;
+  }
+  else {
   	return TRUE;
   }
 }
